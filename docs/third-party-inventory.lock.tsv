@@ -1,0 +1,15 @@
+# scope	coordinate	version	license
+go-runtime	github.com/dustin/go-humanize	v1.0.1	MIT
+go-runtime	github.com/google/uuid	v1.6.0	BSD-3-Clause
+go-runtime	github.com/mattn/go-isatty	v0.0.24	MIT
+go-runtime	github.com/ncruces/go-strftime	v1.0.0	MIT
+go-runtime	github.com/remyoudompheng/bigfft	v0.0.0-20230129092748-24d4a6f8daec	BSD-3-Clause
+go-runtime	golang.org/x/sys	v0.47.0	BSD-3-Clause
+go-runtime	modernc.org/libc	v1.75.6	BSD-3-Clause
+go-runtime	modernc.org/mathutil	v1.7.1	BSD-3-Clause
+go-runtime	modernc.org/memory	v1.12.1	BSD-3-Clause
+go-runtime	modernc.org/sqlite	v1.58.0	BSD-3-Clause
+node-development	@playwright/test	1.62.1	Apache-2.0
+node-development	fsevents	2.3.2	MIT
+node-development	playwright	1.62.1	Apache-2.0
+node-development	playwright-core	1.62.1	Apache-2.0

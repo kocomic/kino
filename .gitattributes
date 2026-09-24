@@ -1,0 +1,12 @@
+# ROM-shaped files in testdata are tiny, non-playable fixtures. Treat their
+# bytes as immutable on every checkout so Windows cannot rewrite LF to CRLF
+# and invalidate the explicit size/hash contracts used by import tests.
+*.gba binary
+*.nds binary
+*.iso binary
+*.opk binary
+
+# Embedded API contracts are compared as protocol text by the Go test suite.
+# Keep their bytes identical when Actions checks the repository out on Windows.
+*.yaml text eol=lf
+*.yml text eol=lf

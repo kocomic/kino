@@ -1,0 +1,1914 @@
+openapi: 3.1.0
+info:
+  title: Kino HTTP API
+  summary: Stable, versioned contract for the Kino ROM library
+  version: 0.2.0-preview.1
+  description: |
+    ROM catalog, metadata imports, managed media, and library maintenance.
+    Protected operations require the configured owner bearer token.
+  license:
+    name: Apache License 2.0
+    identifier: Apache-2.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: /api/v1
+    description: Same-origin stable API entry point
+security:
+  - bearerAuth: []
+tags:
+  - name: System
+    description: Discovery, health, capabilities, and the machine-readable contract.
+  - name: Platforms
+    description: Built-in platform presets and user-defined platform records.
+  - name: Series
+    description: Optional cross-platform presentation groups; member games remain independent.
+  - name: Library
+    description: Games, editions, artifacts, and their stable library relationships.
+  - name: Transfer
+    description: Sources, signed import review, and privacy-minimized hash packs.
+  - name: Runtime
+    description: Source and frontend adapter metadata.
+  - name: Media
+    description: Metadata, verified content delivery, upload, and bounded thumbnails.
+  - name: Storage
+    description: Audited managed-storage quarantine and restore workflows.
+x-kino-common-response-headers:
+  X-Request-ID: Correlates one request across logs and structured errors.
+  X-Kino-API-Version: Always `v1` for this contract.
+  Cache-Control: Always `no-store` for API responses.
+paths:
+  /:
+    get:
+      operationId: getRoot
+      tags: [System]
+      summary: Discover API links and versions
+      security: []
+      responses:
+        '200': {description: API root, content: {application/json: {schema: {$ref: '#/components/schemas/APIRoot'}}}}
+  /health:
+    get:
+      operationId: getHealth
+      tags: [System]
+      summary: Get service health
+      security: []
+      responses:
+        '200': {description: Healthy service, content: {application/json: {schema: {type: object}}}}
+  /health/live:
+    get:
+      operationId: getHealthLive
+      tags: [System]
+      summary: Kubernetes-style liveness probe
+      security: []
+      responses:
+        '200': {description: Process is alive, content: {application/json: {schema: {$ref: '#/components/schemas/HealthLive'}}}}
+  /health/ready:
+    get:
+      operationId: getHealthReady
+      tags: [System]
+      summary: Check database readiness and schema compatibility
+      security: []
+      responses:
+        '200': {description: Service is ready, content: {application/json: {schema: {$ref: '#/components/schemas/HealthReady'}}}}
+        '503': {$ref: '#/components/responses/Error'}
+  /capabilities:
+    get:
+      operationId: getCapabilities
+      tags: [System]
+      summary: Discover formats, targets, limits, and implemented features
+      security: []
+      responses:
+        '200': {description: Versioned capability document, content: {application/json: {schema: {$ref: '#/components/schemas/CapabilityDocument'}}}}
+  /openapi.yaml:
+    get:
+      operationId: getOpenapiYaml
+      tags: [System]
+      summary: Download this OpenAPI contract
+      security: []
+      responses:
+        '200': {description: OpenAPI 3.1 YAML, content: {application/yaml: {schema: {type: string}}}}
+  /platforms:
+    get:
+      operationId: getPlatforms
+      tags: [Platforms]
+      summary: List platform presets
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Offset'}
+        - {name: q, in: query, schema: {type: string}, description: "Search ID, localized name, vendor, aliases, and frontend system names."}
+        - {name: category, in: query, schema: {type: string, enum: [console, handheld, arcade, computer]}}
+      responses:
+        '200': {description: Paginated platforms, content: {application/json: {schema: {$ref: '#/components/schemas/PlatformCollection'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+  /platforms/{id}:
+    get:
+      operationId: getPlatformsById
+      tags: [Platforms]
+      summary: Resolve a platform ID or alias
+      parameters: [{$ref: '#/components/parameters/ID'}]
+      responses:
+        '200': {description: Platform preset, content: {application/json: {schema: {$ref: '#/components/schemas/Platform'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+  /custom-platforms:
+    get:
+      operationId: getCustomPlatforms
+      tags: [Platforms]
+      summary: List user-defined platform records, including disabled entries
+      parameters: [{$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/Offset'}]
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Custom platforms, content: {application/json: {schema: {$ref: '#/components/schemas/CustomPlatformCollection'}}}}
+    post:
+      operationId: postCustomPlatforms
+      tags: [Platforms]
+      summary: Create a custom platform with audited aliases, ROM extensions, and frontend mappings
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/NewCustomPlatform'}}}}
+      responses:
+        '201': {description: Created custom platform, content: {application/json: {schema: {$ref: '#/components/schemas/CustomPlatform'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /custom-platforms/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get:
+      operationId: getCustomPlatformsById
+      tags: [Platforms]
+      summary: Get a custom platform
+      responses:
+        '200': {description: Custom platform, content: {application/json: {schema: {$ref: '#/components/schemas/CustomPlatform'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      operationId: putCustomPlatformsById
+      tags: [Platforms]
+      summary: Replace a custom platform without changing its ID
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/NewCustomPlatform'}}}}
+      responses:
+        '200': {description: Updated custom platform, content: {application/json: {schema: {$ref: '#/components/schemas/CustomPlatform'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteCustomPlatformsById
+      tags: [Platforms]
+      summary: Delete an unused custom platform; referenced platforms must be disabled instead
+      responses:
+        '204': {description: Deleted}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /series:
+    get:
+      operationId: getSeries
+      tags: [Series]
+      summary: List cross-platform series with member Games
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Offset'}
+        - {$ref: '#/components/parameters/Locale'}
+        - {$ref: '#/components/parameters/Projection'}
+        - {name: q, in: query, schema: {type: string}, description: "Search series titles, descriptions, member titles, platforms, and relation types."}
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Paginated full or summary series, content: {application/json: {schema: {oneOf: [{$ref: '#/components/schemas/SeriesCollection'}, {$ref: '#/components/schemas/SeriesSummaryCollection'}]}}}}
+    post:
+      operationId: postSeries
+      tags: [Series]
+      summary: Create a cross-platform series and its optional complete member set atomically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SeriesMutation'}
+      responses:
+        '201': {description: Created series, content: {application/json: {schema: {$ref: '#/components/schemas/Series'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+  /series/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get:
+      operationId: getSeriesById
+      tags: [Series]
+      summary: Get a series and its fully expanded member Games
+      parameters: [{$ref: '#/components/parameters/Locale'}]
+      responses:
+        '200': {description: Series, content: {application/json: {schema: {$ref: '#/components/schemas/Series'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      operationId: putSeriesById
+      tags: [Series]
+      summary: Replace editable series metadata and, when supplied, its complete member set atomically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SeriesMutation'}
+      responses:
+        '200': {description: Updated series, content: {application/json: {schema: {$ref: '#/components/schemas/Series'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteSeriesById
+      tags: [Series]
+      summary: Delete only the presentation grouping; member Games and files remain intact
+      responses:
+        '204': {description: Deleted}
+        '404': {$ref: '#/components/responses/Error'}
+  /series/{id}/members/{game_id}:
+    parameters:
+      - {$ref: '#/components/parameters/ID'}
+      - {name: game_id, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      operationId: putSeriesByIdMembersByGameId
+      tags: [Series]
+      summary: Add or update a Game membership; Games from any platform are accepted
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                relation_type: {type: string, enum: [mainline, port, remake, spinoff, collection, other], default: mainline}
+                sort_order: {type: integer, minimum: 0, default: 0}
+      responses:
+        '200': {description: Updated series, content: {application/json: {schema: {$ref: '#/components/schemas/Series'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteSeriesByIdMembersByGameId
+      tags: [Series]
+      summary: Remove only the membership; Game, Editions, ROMs, and saves remain intact
+      responses:
+        '204': {description: Membership removed}
+        '404': {$ref: '#/components/responses/Error'}
+  /games:
+    get:
+      operationId: getGames
+      tags: [Library]
+      summary: List games with editions and artifacts
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Offset'}
+        - {$ref: '#/components/parameters/Locale'}
+        - {$ref: '#/components/parameters/Projection'}
+        - {name: q, in: query, schema: {type: string}}
+        - {name: platform, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Paginated full or summary games, content: {application/json: {schema: {oneOf: [{$ref: '#/components/schemas/GameCollection'}, {$ref: '#/components/schemas/GameSummaryCollection'}]}}}}
+        '400': {$ref: '#/components/responses/Error'}
+    post:
+      operationId: postGames
+      tags: [Library]
+      summary: Create a game
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/GameMutation'}}}}
+      responses:
+        '201': {description: Created game, content: {application/json: {schema: {$ref: '#/components/schemas/Game'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/ImportConflict'}
+  /games/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get:
+      operationId: getGamesById
+      tags: [Library]
+      summary: Get a game
+      parameters: [{$ref: '#/components/parameters/Locale'}]
+      responses:
+        '200': {description: Game, content: {application/json: {schema: {$ref: '#/components/schemas/Game'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      operationId: putGamesById
+      tags: [Library]
+      summary: Replace editable game metadata
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/GameMutation'}}}}
+      responses:
+        '200': {description: Updated game, content: {application/json: {schema: {$ref: '#/components/schemas/Game'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteGamesById
+      tags: [Library]
+      summary: Delete catalog metadata without deleting ROM files
+      responses:
+        '204': {description: Deleted}
+        '404': {$ref: '#/components/responses/Error'}
+  /games/{id}/merge:
+    post:
+      operationId: postGamesByIdMerge
+      tags: [Library]
+      summary: Merge another same-platform game into this game
+      description: Current clients first obtain a signed preview and submit its token and fingerprint. Omitting both remains supported for legacy clients; supplying only one is rejected without writes. A changed reviewed graph returns game_merge_stale with zero writes.
+      parameters: [{$ref: '#/components/parameters/ID'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/GameMergeCommitRequest'}}}
+      responses:
+        '200': {description: Merged game, content: {application/json: {schema: {$ref: '#/components/schemas/Game'}}}}
+        '409': {$ref: '#/components/responses/Error'}
+  /games/{id}/merge/preview:
+    post:
+      operationId: postGamesByIdMergePreview
+      tags: [Library]
+      summary: Preview and sign an atomic same-platform game merge
+      description: Returns counts and invariants without exposing ROM paths or hashes. The fingerprint covers both games, localized names, editions, artifacts, media, and series membership.
+      parameters:
+        - {$ref: '#/components/parameters/ID'}
+        - {$ref: '#/components/parameters/Locale'}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/GameMergeRequest'}}}
+      responses:
+        '200': {description: Signed merge preview, content: {application/json: {schema: {$ref: '#/components/schemas/GameMergePreview'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /games/{id}/primary:
+    put:
+      operationId: putGamesByIdPrimary
+      tags: [Library]
+      summary: Set the primary edition
+      parameters: [{$ref: '#/components/parameters/ID'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/PrimaryEditionRequest'}}}}
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Updated game, content: {application/json: {schema: {$ref: '#/components/schemas/Game'}}}}
+  /editions:
+    post:
+      operationId: postEditions
+      tags: [Library]
+      summary: Create an independent game edition
+      description: When artifact_path is supplied, the file is resolved below the library root and hashed before the edition and first artifact are committed in one transaction. A missing or unreadable path creates neither record. Leave artifact_path empty for an explicit metadata-only edition.
+      requestBody: {$ref: '#/components/requestBodies/EditionCreateRequest'}
+      responses:
+        '201': {description: Game containing the new edition, content: {application/json: {schema: {oneOf: [{$ref: '#/components/schemas/Game'}, {$ref: '#/components/schemas/Edition'}]}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+  /editions/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get:
+      operationId: getEditionsById
+      tags: [Library]
+      summary: Get an edition
+      parameters: [{$ref: '#/components/parameters/Locale'}]
+      responses:
+        '200': {description: Edition, content: {application/json: {schema: {$ref: '#/components/schemas/Edition'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      operationId: putEditionsById
+      tags: [Library]
+      summary: Replace editable edition metadata
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/EditionMutation'}}}}
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Updated edition, content: {application/json: {schema: {$ref: '#/components/schemas/Edition'}}}}
+    delete:
+      operationId: deleteEditionsById
+      tags: [Library]
+      summary: Delete edition metadata without deleting ROM files
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '204': {description: Deleted}
+  /editions/{id}/move:
+    post:
+      operationId: postEditionsByIdMove
+      tags: [Library]
+      summary: Move an edition to another same-platform game
+      parameters: [{$ref: '#/components/parameters/ID'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/EditionMoveRequest'}}}}
+      responses:
+        '200': {description: Moved edition, content: {application/json: {schema: {$ref: '#/components/schemas/Edition'}}}}
+        '409': {$ref: '#/components/responses/Error'}
+  /artifacts:
+    post:
+      operationId: postArtifacts
+      tags: [Library]
+      summary: Associate a ROM, disc, directory, patch, update, or DLC path
+      description: The path must already exist below the configured library root and be hashable. This endpoint only creates a catalog relationship; it never moves, renames, overwrites, or deletes the source.
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactCreateRequest'}}}}
+      responses:
+        '201': {description: Created artifact, content: {application/json: {schema: {$ref: '#/components/schemas/Artifact'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+  /artifacts/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get:
+      operationId: getArtifactsById
+      tags: [Library]
+      summary: Get an artifact
+      responses:
+        '200': {description: Artifact, content: {application/json: {schema: {$ref: '#/components/schemas/Artifact'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      operationId: putArtifactsById
+      tags: [Library]
+      summary: Update and recheck an artifact
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactUpdateRequest'}}}}
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Updated artifact, content: {application/json: {schema: {$ref: '#/components/schemas/Artifact'}}}}
+    delete:
+      operationId: deleteArtifactsById
+      tags: [Library]
+      summary: Remove the association without deleting the file
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '204': {description: Deleted}
+  /artifacts/recheck:
+    post:
+      operationId: postArtifactsRecheck
+      tags: [Library]
+      summary: Recheck all artifact paths and hashes
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Recheck counts, content: {application/json: {schema: {$ref: '#/components/schemas/ArtifactRecheckResult'}}}}
+  /import-sources:
+    get:
+      operationId: getImportSources
+      tags: [Transfer]
+      summary: Discover frontend metadata inside the library root
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Offset'}
+        - {name: format, in: query, required: true, schema: {type: string, enum: [pegasus, es-de]}}
+      responses:
+        '200': {description: Paginated import sources, content: {application/json: {schema: {$ref: '#/components/schemas/ImportSourceCollection'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+  /sources:
+    get:
+      operationId: getSources
+      tags: [Transfer]
+      summary: List durable library source configurations
+      parameters: [{$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/Offset'}]
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Paginated library sources, content: {application/json: {schema: {$ref: '#/components/schemas/LibrarySourceCollection'}}}}
+    post:
+      operationId: postSources
+      tags: [Transfer]
+      summary: Save a read-only source configuration below the library root
+      requestBody: {$ref: '#/components/requestBodies/LibrarySourceRequest'}
+      responses:
+        '201': {description: Created source, content: {application/json: {schema: {$ref: '#/components/schemas/LibrarySource'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /sources/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get:
+      operationId: getSourcesById
+      tags: [Transfer]
+      summary: Get a durable library source
+      responses:
+        '200': {description: Library source, content: {application/json: {schema: {$ref: '#/components/schemas/LibrarySource'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      operationId: putSourcesById
+      tags: [Transfer]
+      summary: Replace source settings without changing any source file
+      requestBody: {$ref: '#/components/requestBodies/LibrarySourceRequest'}
+      responses:
+        '200': {description: Updated source, content: {application/json: {schema: {$ref: '#/components/schemas/LibrarySource'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteSourcesById
+      tags: [Transfer]
+      summary: Delete configuration metadata only when it has no scan history
+      description: Source files are never deleted. Disable a source to retain its audit history.
+      responses:
+        '204': {description: Configuration deleted; source files unchanged}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /sources/{id}/scans:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    post:
+      operationId: postSourcesByIdScans
+      tags: [Transfer]
+      summary: Run a read-only scan and persist its bounded preview audit
+      responses:
+        '201': {description: Signed source preview, content: {application/json: {schema: {$ref: '#/components/schemas/SourceScanPreview'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /source-scans:
+    get:
+      operationId: getSourceScans
+      tags: [Transfer]
+      summary: List source scan audit records
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Offset'}
+        - {name: source_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Paginated source scans, content: {application/json: {schema: {$ref: '#/components/schemas/SourceScanCollection'}}}}
+  /source-scans/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get:
+      operationId: getSourceScansById
+      tags: [Transfer]
+      summary: Get one source scan audit record
+      responses:
+        '200': {description: Source scan, content: {application/json: {schema: {$ref: '#/components/schemas/SourceScan'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+  /source-scans/{id}/commit:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    post:
+      operationId: postSourceScansByIdCommit
+      tags: [Transfer]
+      summary: Rescan and atomically commit a non-expired persistent preview
+      requestBody: {$ref: '#/components/requestBodies/SourceScanCommitRequest'}
+      responses:
+        '200': {description: Atomic import result plus committed scan, content: {application/json: {schema: {$ref: '#/components/schemas/ImportCommitResult'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/ImportConflict'}
+  /hash-sources:
+    get:
+      operationId: getHashSources
+      tags: [Transfer]
+      summary: List imported ROM identity data sources and their active immutable releases
+      parameters: [{$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/Offset'}]
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Paginated hash sources, content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/HashSource'}}}}}}}
+  /hash-identities/{sha256}:
+    get:
+      operationId: getHashIdentitiesBySha256
+      tags: [Transfer]
+      summary: Resolve active reference metadata for an exact ROM SHA-256
+      parameters:
+        - {name: sha256, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{64}$'}}
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Zero or more source-attributed identity records, content: {application/json: {schema: {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/HashIdentity'}}}}}}}
+  /hash-packs/preview:
+    post:
+      operationId: postHashPacksPreview
+      tags: [Transfer]
+      summary: Validate and classify a privacy-minimized Kino hash pack without writing
+      requestBody: {$ref: '#/components/requestBodies/HashPackUpload'}
+      responses:
+        '200': {description: Signed hash pack preview, content: {application/json: {schema: {$ref: '#/components/schemas/HashPackPreview'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '413': {$ref: '#/components/responses/Error'}
+  /hash-packs/import:
+    post:
+      operationId: postHashPacksImport
+      tags: [Transfer]
+      summary: Revalidate and atomically import the exact hash pack approved by preview
+      requestBody: {$ref: '#/components/requestBodies/HashPackCommit'}
+      responses:
+        '200': {description: The exact immutable release was already installed; no write was needed, content: {application/json: {schema: {$ref: '#/components/schemas/HashPackImportResult'}}}}
+        '201': {description: "Immutable release imported; no Game, Edition, or Artifact is created", content: {application/json: {schema: {$ref: '#/components/schemas/HashPackImportResult'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '413': {$ref: '#/components/responses/Error'}
+  /hash-packs/export:
+    post:
+      operationId: postHashPacksExport
+      tags: [Transfer]
+      summary: Export present ROM identities without ROM bytes, paths, saves, media, devices, or play history
+      requestBody: {$ref: '#/components/requestBodies/HashPackExport'}
+      responses:
+        '200': {description: Kino hash pack ZIP, content: {application/vnd.kino.hashpack+zip: {schema: {type: string, format: binary}}}}
+        '400': {$ref: '#/components/responses/Error'}
+  /imports/preview:
+    post:
+      operationId: postImportsPreview
+      tags: [Transfer]
+      summary: Parse and classify import candidates without writing
+      requestBody: {$ref: '#/components/requestBodies/ImportRequest'}
+      responses:
+        '200':
+          description: Signed candidate preview
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportPreview'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/ImportConflict'}
+  /imports/commit:
+    post:
+      operationId: postImportsCommit
+      tags: [Transfer]
+      summary: Reparse and atomically commit candidates selected by signed token
+      requestBody: {$ref: '#/components/requestBodies/ImportRequest'}
+      responses:
+        '200':
+          description: Atomic import counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportCommitResult'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/ImportConflict'}
+  /imports/roms/preview:
+    post:
+      operationId: postImportsRomsPreview
+      tags: [Transfer]
+      summary: Scan a ROM file or directory and classify candidates without writing
+      requestBody: {$ref: '#/components/requestBodies/ROMImportRequest'}
+      responses:
+        '200':
+          description: Signed ROM candidates with hashes, grouping, and duplicate state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportPreview'}
+        '400': {$ref: '#/components/responses/Error'}
+  /imports/roms/commit:
+    post:
+      operationId: postImportsRomsCommit
+      tags: [Transfer]
+      summary: Rescan and atomically import ROM candidates selected by signed token
+      requestBody: {$ref: '#/components/requestBodies/ROMImportRequest'}
+      responses:
+        '200':
+          description: Atomic ROM import counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportCommitResult'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /source-adapters:
+    get:
+      operationId: getSourceAdapters
+      tags: [Transfer]
+      summary: List versioned, declarative source adapter contracts
+      parameters: [{$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/Offset'}]
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Paginated source adapters, content: {application/json: {schema: {$ref: '#/components/schemas/SourceAdapterCollection'}}}}
+    post:
+      operationId: postSourceAdapters
+      tags: [Transfer]
+      summary: Create a custom adapter that specializes an audited built-in import handler
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SourceAdapterMutation'}}}}
+      responses:
+        '201': {description: Created source adapter, content: {application/json: {schema: {$ref: '#/components/schemas/SourceAdapter'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+  /source-adapters/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get: {operationId: getSourceAdaptersById, tags: [Transfer], summary: Get a source adapter, responses: {'200': {description: Source adapter, content: {application/json: {schema: {$ref: '#/components/schemas/SourceAdapter'}}}}, '404': {$ref: '#/components/responses/Error'}}}
+    put: {operationId: putSourceAdaptersById, tags: [Transfer], summary: Replace a custom source adapter, requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SourceAdapterMutation'}}}}, responses: {'200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/SourceAdapter'}}}}, '409': {$ref: '#/components/responses/Error'}}}
+    delete: {operationId: deleteSourceAdaptersById, tags: [Transfer], summary: Delete an unused custom source adapter, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Error'}}}
+  /frontend-adapters:
+    get:
+      operationId: getFrontendAdapters
+      tags: [Runtime]
+      summary: List versioned frontend adapter contracts
+      parameters: [{$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/Offset'}]
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Paginated frontend adapters, content: {application/json: {schema: {$ref: '#/components/schemas/FrontendAdapterCollection'}}}}
+    post:
+      operationId: postFrontendAdapters
+      tags: [Runtime]
+      summary: Create a custom format bound to an audited compiled export handler
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FrontendAdapterMutation'}}}}
+      responses:
+        '201': {description: Created frontend adapter, content: {application/json: {schema: {$ref: '#/components/schemas/FrontendAdapter'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+  /frontend-adapters/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get: {operationId: getFrontendAdaptersById, tags: [Runtime], summary: Get a frontend adapter, responses: {'200': {description: Frontend adapter, content: {application/json: {schema: {$ref: '#/components/schemas/FrontendAdapter'}}}}, '404': {$ref: '#/components/responses/Error'}}}
+    put: {operationId: putFrontendAdaptersById, tags: [Runtime], summary: Replace a custom frontend adapter, requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FrontendAdapterMutation'}}}}, responses: {'200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/FrontendAdapter'}}}}, '409': {$ref: '#/components/responses/Error'}}}
+    delete: {operationId: deleteFrontendAdaptersById, tags: [Runtime], summary: Delete an unused custom frontend adapter, responses: {'204': {description: Deleted}, '409': {$ref: '#/components/responses/Error'}}}
+  /storage-cleanup/preview:
+    post:
+      operationId: postStorageCleanupPreview
+      tags: [Storage]
+      summary: Preview unreferenced files in service-managed ROM and media storage
+      description: Scans only the service-managed roots. Referenced library or NAS paths, save blobs, active media staging files, symbolic links, and unsupported file types are never cleanup candidates. The signed token binds the complete candidate set.
+      responses:
+        '200': {description: Exact reviewable cleanup plan, content: {application/json: {schema: {$ref: '#/components/schemas/ManagedCleanupPreview'}}}}
+        '409': {$ref: '#/components/responses/Error'}
+  /storage-cleanup/commit:
+    post:
+      operationId: postStorageCleanupCommit
+      tags: [Storage]
+      summary: Move selected unreferenced managed files into private recovery storage
+      description: Rechecks catalog references under an immediate database lock, verifies the signed preview and every selected file, writes a mode-0600 recovery manifest, then uses same-volume renames. It never deletes file bytes.
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ManagedCleanupCommitRequest'}}}}
+      responses:
+        '201': {description: Files quarantined with a recoverable operation record, content: {application/json: {schema: {$ref: '#/components/schemas/ManagedCleanupRun'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '500': {$ref: '#/components/responses/Error'}
+  /storage-cleanup/runs:
+    get:
+      operationId: getStorageCleanupRuns
+      tags: [Storage]
+      summary: List sanitized managed-storage recovery operations
+      description: Returns counts, byte totals, timestamps, and status only. Original filenames and paths remain in the private local recovery manifest and are not exposed by this endpoint.
+      parameters: [{$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/Offset'}]
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Paginated recovery operations, content: {application/json: {schema: {$ref: '#/components/schemas/ManagedCleanupRunCollection'}}}}
+  /storage-cleanup/runs/{id}/restore:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    post:
+      operationId: postStorageCleanupRunsByIdRestore
+      tags: [Storage]
+      summary: Restore every file from one managed-storage recovery operation
+      description: Preflights the complete destination set and refuses the whole restore if any destination is occupied or any recovery payload changed. Repeated restore requests are idempotent.
+      responses:
+        '200': {description: Restored or already-restored operation, content: {application/json: {schema: {$ref: '#/components/schemas/ManagedCleanupRun'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /media:
+    get:
+      operationId: getMedia
+      tags: [Media]
+      summary: List game- or edition-scoped media assets
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Offset'}
+        - {name: game_id, in: query, schema: {type: string, format: uuid}}
+        - {name: edition_id, in: query, schema: {type: string, format: uuid}}
+        - {name: kind, in: query, schema: {type: string}}
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200': {description: Paginated media assets, content: {application/json: {schema: {$ref: '#/components/schemas/MediaAssetCollection'}}}}
+  /media/upload:
+    post:
+      operationId: postMediaUpload
+      tags: [Media]
+      summary: Upload a content-addressed media asset
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, kind]
+              properties:
+                file: {type: string, format: binary}
+                game_id: {type: string, format: uuid}
+                edition_id: {type: string, format: uuid}
+                kind: {type: string, enum: [cover, box_front, box_back, box_spine, logo, screenshot, title_screen, background, fanart, marquee, bezel, manual, video, music, cartridge, poster, banner, tile, other]}
+                locale: {type: string}
+                sort_order: {type: integer, minimum: 0}
+      responses:
+        '201': {description: Created media asset, content: {application/json: {schema: {$ref: '#/components/schemas/MediaAsset'}}}}
+        '413': {$ref: '#/components/responses/Error'}
+        '415': {$ref: '#/components/responses/Error'}
+  /media/recheck:
+    post:
+      operationId: postMediaRecheck
+      tags: [Media]
+      summary: Recheck scoped media paths and atomically persist availability and identity status without deleting or repairing files
+      parameters:
+        - {name: game_id, in: query, schema: {type: string, format: uuid}, description: Limit the check to media owned by one game.}
+        - {name: edition_id, in: query, schema: {type: string, format: uuid}, description: Limit the check to media owned by one edition; cannot be combined with game_id.}
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '200':
+          description: Recheck summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checked, available, missing, changed, unsafe, unverified]
+                properties:
+                  checked: {type: integer, minimum: 0}
+                  available: {type: integer, minimum: 0}
+                  missing: {type: integer, minimum: 0}
+                  changed: {type: integer, minimum: 0}
+                  unsafe: {type: integer, minimum: 0}
+                  unverified: {type: integer, minimum: 0}
+  /media/{id}:
+    parameters: [{$ref: '#/components/parameters/ID'}]
+    get:
+      operationId: getMediaById
+      tags: [Media]
+      summary: Get media metadata
+      responses:
+        '200': {description: Media asset, content: {application/json: {schema: {$ref: '#/components/schemas/MediaAsset'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      operationId: putMediaById
+      tags: [Media]
+      summary: Update media kind, locale, and ordering without changing ownership or blob content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MediaMetadataUpdate'}
+      responses:
+        '200': {description: Updated media metadata, content: {application/json: {schema: {$ref: '#/components/schemas/MediaAsset'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteMediaById
+      tags: [Media]
+      summary: Remove the media relationship; blob collection is deferred to GC
+      responses:
+        '401': {$ref: '#/components/responses/Error'}
+        '204': {description: Relationship deleted}
+  /media/{id}/content:
+    get:
+      operationId: getMediaByIdContent
+      tags: [Media]
+      summary: Verify recorded size and SHA-256 before streaming media content with a hash ETag
+      parameters: [{$ref: '#/components/parameters/ID'}]
+      responses:
+        '200': {description: Media content, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        '304': {description: Client cache is current}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /media/{id}/thumbnail:
+    get:
+      operationId: getMediaByIdThumbnail
+      tags: [Media]
+      summary: Verify the original media identity, then return or create a bounded PNG thumbnail
+      description: The original regular file, recorded size, and SHA-256 are verified before every cache hit. Only PNG, JPEG, and GIF sources within the documented byte and pixel limits are decoded. The service-owned cache is replaceable and never hides missing or changed source media.
+      parameters:
+        - {$ref: '#/components/parameters/ID'}
+        - {name: size, in: query, schema: {type: integer, enum: [128, 256, 480, 768], default: 480}, description: Maximum width or height in pixels; images are never enlarged.}
+      responses:
+        '200': {description: Verified PNG thumbnail, content: {image/png: {schema: {type: string, format: binary}}}}
+        '304': {description: Client cache is current; source identity was still verified first}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '415': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Owner token or a server-issued device token; device scopes are enforced per route.
+  headers:
+    RequestID:
+      description: Caller-supplied valid request identity or a server-generated identity.
+      schema: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9._-]+$'}
+    APIVersion:
+      description: Stable API path version used for this response.
+      schema: {type: string, const: v1}
+  parameters:
+    ID: {name: id, in: path, required: true, schema: {type: string}, description: Opaque resource identifier; clients must not infer its shape or ordering.}
+    Locale: {name: locale, in: query, schema: {type: string, enum: [zh-CN, zh-TW, ja, en]}, description: Preferred localized title. The resource default remains the fallback.}
+    Projection: {name: projection, in: query, schema: {type: string, enum: [full, summary], default: full}, description: "Use summary for list metadata, aggregate artifact state, and an opaque cover reference; fetch the detail resource before editing or launching."}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 100}, description: Maximum number of records returned in this page.}
+    Offset: {name: offset, in: query, schema: {type: integer, minimum: 0, default: 0}, description: Zero-based record offset in the endpoint's documented stable ordering.}
+  requestBodies:
+    ImportRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [format, source]
+            properties:
+              format: {type: string, enum: [pegasus, es-de, kino]}
+              source: {type: string, description: Relative metadata path inside the library root}
+              content_root: {type: string, description: Optional relative ROM directory inside the library root for Pegasus or ES-DE packs that store metadata separately. Media remains relative to the metadata file. This value is bound into the signed preview.}
+              runtime_source: {type: string, description: Optional explicit ES-DE es_systems.xml path inside the library root. Commands are imported as inert untrusted review hints and are never executed.}
+              platform: {type: string, description: Required for Pegasus and ES-DE; omitted for a neutral v4/v5/v6 manifest because every entry carries its own platform}
+              locale: {type: string, enum: [zh-CN, zh-TW, ja, en]}
+              rom_storage: {type: string, enum: [reference, copy], default: reference}
+              media_storage: {type: string, enum: [copy, reference, ignore], default: copy}
+              preview_token: {type: string, description: Required on commit; signed snapshot token returned by preview}
+              selected_tokens: {type: array, minItems: 1, uniqueItems: true, items: {type: string}, description: Required on commit; opaque candidate tokens returned by preview}
+    ROMImportRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [source, platform]
+            properties:
+              source: {type: string, description: ROM file or directory path inside the library root}
+              platform: {type: string}
+              rom_storage: {type: string, enum: [reference, copy], default: reference}
+              preview_token: {type: string, description: Required on commit; signed snapshot token returned by preview}
+              selected_tokens: {type: array, minItems: 1, uniqueItems: true, items: {type: string}, description: Required on commit; opaque candidate tokens returned by preview}
+    LibrarySourceRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, kind]
+            properties:
+              name: {type: string}
+              kind: {type: string, enum: [rom_directory, pegasus, esde, kino]}
+              source_adapter_id: {type: string, description: Optional versioned adapter reference; defaults to the matching built-in handler}
+              root_path: {type: string, description: "Relative ROM directory for rom_directory, or optional separate ROM content root for Pegasus and ES-DE; defaults to the metadata directory for metadata sources"}
+              metadata_path: {type: string, description: "Relative metadata file for Pegasus, ES-DE, or neutral Kino v4/v5/v6 manifest"}
+              runtime_metadata_path: {type: string, description: Optional explicit ES-DE es_systems.xml path; never auto-discovered or executed}
+              platform: {type: string, description: "Required except for kino, whose entries carry independent platforms"}
+              metadata_locale: {type: string, enum: [zh-CN, zh-TW, ja, en, '']}
+              rom_storage_policy: {type: string, enum: [reference, copy], default: reference}
+              media_storage_policy: {type: string, enum: [copy, reference, ignore], default: copy}
+              enabled: {type: boolean, default: true}
+    SourceScanCommitRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [preview_token, selected_tokens]
+            properties:
+              preview_token: {type: string}
+              selected_tokens: {type: array, minItems: 1, uniqueItems: true, items: {type: string}}
+    HashPackUpload:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file: {type: string, format: binary}
+    HashPackCommit:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file, preview_token]
+            properties:
+              file: {type: string, format: binary}
+              preview_token: {type: string, description: Signed snapshot returned by hash pack preview}
+    HashPackExport:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [source_id, name, license, release]
+            properties:
+              source_id: {type: string, pattern: '^[a-z0-9][a-z0-9._-]{0,127}$'}
+              name: {type: string, maxLength: 200}
+              publisher: {type: string, maxLength: 200}
+              license: {type: string, maxLength: 200}
+              release: {type: string, maxLength: 128}
+    EditionCreateRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [game_id, default_title, edition_type]
+            properties:
+              id: {type: string, format: uuid, description: Optional caller-generated identity}
+              game_id: {type: string, format: uuid}
+              default_title: {type: string}
+              edition_type: {type: string, enum: [original, translation, hack, revision, homebrew, other]}
+              version: {type: string}
+              languages: {type: array, items: {type: string}}
+              author: {type: string}
+              serial: {type: string}
+              product_code: {type: string}
+              title_id: {type: string}
+              sort_order: {type: integer}
+              titles: {type: object, additionalProperties: {type: string}}
+              artifact_path: {type: string, description: Optional existing library-relative ROM file or directory; never persisted when validation or hashing fails}
+              artifact_role: {type: string, enum: [rom, disc, executable, patch, dlc, update, other], default: rom}
+              disc_index: {type: integer, minimum: 0, maximum: 64}
+  responses:
+    ImportConflict:
+      description: import_preview_stale when the signed snapshot no longer matches; import_batch_conflict when an atomic batch cannot commit; platform_definition_conflict/platform_definition_disabled/platform_key_conflict when a portable custom platform cannot be safely reused or created
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        X-Kino-API-Version: {$ref: '#/components/headers/APIVersion'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    Error:
+      description: Structured API error
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        X-Kino-API-Version: {$ref: '#/components/headers/APIVersion'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+          example:
+            error:
+              code: invalid_argument
+              message: request payload is invalid
+              request_id: 40e39da4b75c41c28cf40b9f8de46c48
+  schemas:
+    CapabilityFeatures:
+      type: object
+      additionalProperties: false
+      required: [rom_scan_preview, import_preview_tokens, atomic_import_batches, missing_rom_detection, persistent_sources, source_scan_audit, source_adapters, bounded_source_preview, unmanaged_output_guard, frontend_adapters, portable_runtime_catalog_v2, reserved_builtin_namespace, neutral_manifest_v5, neutral_manifest_v6, portable_custom_platforms, custom_platforms, edition_grouping, game_merge_preview, cross_platform_series, multilingual_names, directory_rom_inventory, managed_roms, media_assets, media_thumbnails, managed_storage_quarantine, managed_storage_restore, hash_pack_import, hash_pack_export, hash_identity_provenance]
+      properties:
+        rom_scan_preview: {type: boolean}
+        import_preview_tokens: {type: boolean}
+        atomic_import_batches: {type: boolean}
+        missing_rom_detection: {type: boolean}
+        persistent_sources: {type: boolean}
+        source_scan_audit: {type: boolean}
+        source_adapters: {type: boolean}
+        bounded_source_preview: {type: boolean}
+        unmanaged_output_guard: {type: boolean}
+        frontend_adapters: {type: boolean}
+        portable_runtime_catalog_v2: {type: boolean}
+        reserved_builtin_namespace: {type: boolean}
+        neutral_manifest_v5: {type: boolean}
+        neutral_manifest_v6: {type: boolean}
+        portable_custom_platforms: {type: boolean}
+        custom_platforms: {type: boolean}
+        edition_grouping: {type: boolean}
+        game_merge_preview: {type: boolean}
+        cross_platform_series: {type: boolean}
+        multilingual_names: {type: boolean}
+        directory_rom_inventory: {type: boolean}
+        managed_roms: {type: boolean}
+        media_assets: {type: boolean}
+        media_thumbnails: {type: boolean}
+        managed_storage_quarantine: {type: boolean}
+        managed_storage_restore: {type: boolean}
+        hash_pack_import: {type: boolean}
+        hash_pack_export: {type: boolean}
+        hash_identity_provenance: {type: boolean}
+    CapabilityDocument:
+      type: object
+      additionalProperties: false
+      required: [contract_version, api_version, imports, exports, file_modes, rom_import_storage, media_import_storage, media_upload_max_mb, locales, platform_presets, custom_platforms, features]
+      properties:
+        contract_version: {type: integer, const: 1}
+        api_version: {type: string, const: v1}
+        imports: {type: array, uniqueItems: true, items: {type: string, enum: [rom-file, rom-directory, pegasus, es-de, kino-v6, kino-v5-compatible, kino-v4-compatible, kino-hashpack-v1]}}
+        exports: {type: array, uniqueItems: true, items: {type: string, enum: [pegasus, es-de, kino-hashpack-v1]}}
+        file_modes: {type: array, uniqueItems: true, items: {type: string, enum: [copy, hardlink, reference]}}
+        rom_import_storage: {type: array, uniqueItems: true, items: {type: string, enum: [reference, copy]}}
+        media_import_storage: {type: array, uniqueItems: true, items: {type: string, enum: [copy, reference, ignore]}}
+        media_upload_max_mb: {type: integer, minimum: 1}
+        locales: {type: array, uniqueItems: true, items: {type: string, enum: [zh-CN, zh-TW, ja, en]}}
+        platform_presets: {type: integer, minimum: 0}
+        custom_platforms: {type: integer, minimum: 0}
+        features: {$ref: '#/components/schemas/CapabilityFeatures'}
+    HashSource:
+      type: object
+      required: [id, name, license, trust_level, record_count, release_count, created_at, updated_at]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        publisher: {type: string}
+        license: {type: string}
+        trust_level: {type: string, enum: [local, imported, trusted]}
+        active_release_id: {type: string, format: uuid}
+        active_version: {type: string}
+        active_pack_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        record_count: {type: integer, minimum: 0}
+        release_count: {type: integer, minimum: 0}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    HashIdentity:
+      type: object
+      required: [sha256, size, platform, game_key, game_default_title, edition_default_title, edition_type, role]
+      properties:
+        sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        size: {type: integer, minimum: 1}
+        crc32: {type: string, pattern: '^[0-9a-f]{8}$'}
+        md5: {type: string, pattern: '^[0-9a-f]{32}$'}
+        platform: {type: string}
+        game_key: {type: string}
+        game_default_title: {type: string}
+        game_titles: {type: object, additionalProperties: {type: string}}
+        edition_default_title: {type: string}
+        edition_titles: {type: object, additionalProperties: {type: string}}
+        edition_type: {type: string}
+        version: {type: string}
+        languages: {type: array, uniqueItems: true, items: {type: string}}
+        author: {type: string}
+        region: {type: string}
+        serial: {type: string}
+        product_code: {type: string}
+        title_id: {type: string}
+        role: {type: string, enum: [rom, disc, executable]}
+        disc_index: {type: integer, minimum: 0, maximum: 64}
+        parent_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+    HashPackPreview:
+      type: object
+      required: [source, release, pack_id, pack_sha256, record_count, new_count, existing_count, conflict_count, existing_release, release_conflict, preview_token]
+      properties:
+        source:
+          type: object
+          required: [id, name, license]
+          properties:
+            id: {type: string}
+            name: {type: string}
+            publisher: {type: string}
+            license: {type: string}
+        release: {type: string}
+        pack_id: {type: string, pattern: '^[0-9a-f]{64}$'}
+        pack_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        record_count: {type: integer, minimum: 1}
+        new_count: {type: integer, minimum: 0}
+        existing_count: {type: integer, minimum: 0}
+        conflict_count: {type: integer, minimum: 0}
+        existing_release: {type: boolean}
+        release_conflict: {type: boolean}
+        preview_token: {type: string}
+    HashPackImportResult:
+      type: object
+      required: [source, release, imported_records, existing_release]
+      properties:
+        source: {$ref: '#/components/schemas/HashSource'}
+        release:
+          type: object
+          required: [id, source_id, version, format_version, pack_id, pack_sha256, records_sha256, record_count, source_name, license, active, imported_at]
+          properties:
+            id: {type: string, format: uuid}
+            source_id: {type: string}
+            version: {type: string}
+            format_version: {type: integer, const: 1}
+            pack_id: {type: string, pattern: '^[0-9a-f]{64}$'}
+            pack_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+            records_sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+            record_count: {type: integer, minimum: 1}
+            source_name: {type: string}
+            publisher: {type: string}
+            license: {type: string}
+            active: {type: boolean}
+            imported_at: {type: string, format: date-time}
+        imported_records: {type: integer, minimum: 0}
+        existing_release: {type: boolean}
+    ManagedCleanupCandidate:
+      type: object
+      required: [id, storage_kind, relative_path, size, modified_at]
+      properties:
+        id: {type: string, pattern: '^[a-f0-9]{32}$', description: "Identity bound to kind, relative path, size, mode, and modification time."}
+        storage_kind: {type: string, enum: [rom, media]}
+        relative_path: {type: string, description: Path relative to the selected service-managed root; never a host-absolute path.}
+        size: {type: integer, format: int64, minimum: 0}
+        modified_at: {type: string, format: date-time}
+    ManagedCleanupPreview:
+      type: object
+      required: [preview_token, fingerprint, candidates, total_bytes]
+      properties:
+        preview_token: {type: string, minLength: 32}
+        fingerprint: {type: string, pattern: '^[a-f0-9]{64}$'}
+        candidates: {type: array, maxItems: 50000, items: {$ref: '#/components/schemas/ManagedCleanupCandidate'}}
+        total_bytes: {type: integer, format: int64, minimum: 0}
+    ManagedCleanupCommitRequest:
+      type: object
+      required: [preview_token, selected_ids]
+      additionalProperties: false
+      properties:
+        preview_token: {type: string, minLength: 32}
+        selected_ids: {type: array, minItems: 1, maxItems: 50000, uniqueItems: true, items: {type: string, pattern: '^[a-f0-9]{32}$'}}
+    ManagedCleanupRun:
+      type: object
+      required: [id, status, item_count, total_bytes, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [prepared, quarantined, restored]}
+        item_count: {type: integer, minimum: 1}
+        total_bytes: {type: integer, format: int64, minimum: 0}
+        created_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time}
+    ManagedCleanupRunCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/ManagedCleanupRun'}}}}
+    APIRoot:
+      type: object
+      required: [name, api_version, service_version, links]
+      properties:
+        name: {type: string}
+        api_version: {type: string, const: v1}
+        service_version: {type: string}
+        links: {type: object, additionalProperties: {type: string}}
+    HealthLive:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {type: string, const: ok}
+    HealthReady:
+      type: object
+      additionalProperties: false
+      required: [status, schema_version, supported_schema_version]
+      properties:
+        status: {type: string, const: ready}
+        schema_version: {type: integer, minimum: 1}
+        supported_schema_version: {type: integer, minimum: 1}
+    ImportSource:
+      type: object
+      additionalProperties: false
+      required: [format, path, platform, size, modified_at]
+      properties:
+        format: {type: string, enum: [pegasus, es-de, kino]}
+        path: {type: string, description: Library-root-relative metadata path.}
+        platform: {type: string, description: "Canonical platform ID, or empty for a multi-platform Kino manifest."}
+        size: {type: integer, format: int64, minimum: 0}
+        modified_at: {type: string, format: date-time}
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: {type: string, description: Stable machine-readable error code used for client branching.}
+            message: {type: string, description: Human-readable diagnostic; clients must not parse this value.}
+            request_id: {type: string, description: Correlation identity also returned in the X-Request-ID header.}
+    Pagination:
+      type: object
+      additionalProperties: false
+      description: Offset page metadata. Repeat the same filters and ordering while advancing offset by the number of returned records.
+      required: [limit, offset, total]
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 200}
+        offset: {type: integer, minimum: 0}
+        total: {type: integer, minimum: 0}
+    GameMutation:
+      type: object
+      additionalProperties: false
+      required: [default_title, platform]
+      properties:
+        id: {type: string, description: Optional caller-generated identity on create; ignored on update.}
+        default_title: {type: string, minLength: 1}
+        platform: {type: string, minLength: 1, description: Canonical platform ID or registered alias.}
+        titles: {type: object, additionalProperties: {type: string}}
+    PrimaryEditionRequest:
+      type: object
+      additionalProperties: false
+      required: [edition_id]
+      properties:
+        edition_id: {type: string, minLength: 1}
+    EditionMutation:
+      type: object
+      additionalProperties: false
+      required: [game_id, default_title, edition_type]
+      properties:
+        id: {type: string, description: Optional caller-generated identity on create; ignored on update.}
+        game_id: {type: string, minLength: 1}
+        default_title: {type: string, minLength: 1}
+        edition_type: {type: string, enum: [original, translation, hack, revision, homebrew, other]}
+        version: {type: string}
+        languages: {type: array, uniqueItems: true, items: {type: string}}
+        author: {type: string}
+        serial: {type: string}
+        product_code: {type: string}
+        title_id: {type: string}
+        sort_order: {type: integer}
+        titles: {type: object, additionalProperties: {type: string}}
+    EditionMoveRequest:
+      type: object
+      additionalProperties: false
+      required: [target_game_id]
+      properties:
+        target_game_id: {type: string, minLength: 1}
+    ArtifactCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [edition_id, path]
+      properties:
+        id: {type: string, description: Optional caller-generated identity.}
+        edition_id: {type: string, minLength: 1}
+        path: {type: string, minLength: 1, description: Existing path below the configured library root.}
+        role: {type: string, enum: [rom, disc, executable, patch, dlc, update, other], default: rom}
+        disc_index: {type: integer, minimum: 0, maximum: 64}
+    ArtifactUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        path: {type: string, description: Required for referenced artifacts; managed artifact paths are immutable.}
+        role: {type: string, enum: [rom, disc, executable, patch, dlc, update, other], default: rom}
+        disc_index: {type: integer, minimum: 0, maximum: 64}
+    SourceAdapterMutation:
+      type: object
+      additionalProperties: false
+      required: [name, format, handler]
+      properties:
+        id: {type: string}
+        name: {type: string, minLength: 1}
+        format: {type: string, minLength: 1}
+        handler: {type: string, enum: [rom_directory, pegasus, esde, kino]}
+        contract_version: {type: integer, minimum: 1, default: 1}
+        capabilities: {type: object, additionalProperties: {type: boolean}}
+        support_level: {$ref: '#/components/schemas/SupportLevel'}
+        evidence: {$ref: '#/components/schemas/SupportEvidence'}
+        enabled: {type: boolean, default: true}
+    FrontendAdapterMutation:
+      type: object
+      additionalProperties: false
+      required: [name, format, handler]
+      properties:
+        id: {type: string}
+        name: {type: string, minLength: 1}
+        format: {type: string, minLength: 1}
+        handler: {type: string, enum: ['', pegasus, es-de]}
+        contract_version: {type: integer, minimum: 1, default: 1}
+        capabilities: {type: object, additionalProperties: {type: boolean}}
+        support_level: {$ref: '#/components/schemas/SupportLevel'}
+        evidence: {$ref: '#/components/schemas/SupportEvidence'}
+        enabled: {type: boolean, default: true}
+    ArtifactRecheckResult:
+      type: object
+      additionalProperties: false
+      required: [checked, missing]
+      properties:
+        checked: {type: integer, minimum: 0}
+        missing: {type: integer, minimum: 0}
+    ImportCandidate:
+      type: object
+      required: [index, status, availability, available_artifacts, missing_artifacts, token, game]
+      properties:
+        index: {type: integer, minimum: 0, description: Display order only; never use as commit identity}
+        status: {type: string, enum: [new, append, missing, duplicate, conflict]}
+        reason: {type: string}
+        availability: {type: string, enum: [ready, partial, missing]}
+        available_artifacts: {type: integer, minimum: 0}
+        missing_artifacts: {type: integer, minimum: 0}
+        token: {type: string, description: Opaque signed candidate identity bound to this preview}
+        game:
+          type: object
+          additionalProperties: true
+          properties:
+            platform_definition:
+              $ref: '#/components/schemas/NewCustomPlatform'
+              description: Present only for manifest v6 entries that require a portable custom platform; covered by the signed preview and committed atomically with selected games
+            runtime_catalog:
+              $ref: '#/components/schemas/PortableRuntimeCatalog'
+              description: Present for kino-launches.json v2; selected custom runtime definitions and the package profile are preview-token protected and committed atomically with selected games
+    ImportPreview:
+      type: object
+      required: [parsed, preview_token, candidates, source_diagnostics]
+      properties:
+        parsed: {type: integer, minimum: 0}
+        preview_token: {type: string, description: Opaque signed snapshot; server restart invalidates it}
+        candidates: {type: array, items: {$ref: '#/components/schemas/ImportCandidate'}}
+        source_diagnostics: {type: array, items: {$ref: '#/components/schemas/ImportSourceDiagnostic'}, description: "Aggregate source-state hints only; never includes filenames, paths, sizes, hashes, passwords, or executable tool instructions"}
+    ImportSourceDiagnostic:
+      type: object
+      required: [code, count]
+      additionalProperties: false
+      properties:
+        code: {type: string, enum: [wrapped_archives_detected, split_archives_detected, platform_wrapped_archives_detected, platform_split_archive_parts_detected, container_inspection_limited]}
+        count: {type: integer, minimum: 1}
+    ImportCommitResult:
+      type: object
+      required: [parsed, imported, skipped, failure_policy, rom_storage, media_storage]
+      properties:
+        parsed: {type: integer, minimum: 0}
+        imported: {type: integer, minimum: 0}
+        skipped: {type: integer, minimum: 0}
+        failure_policy: {type: string, const: atomic}
+        rom_storage: {type: string, enum: [reference, copy]}
+        media_storage: {type: string, enum: [copy, reference, ignore]}
+        rom_files_copied: {type: integer, minimum: 0}
+        rom_bytes_copied: {type: integer, format: int64, minimum: 0}
+        media_files_copied: {type: integer, minimum: 0}
+        media_bytes_copied: {type: integer, format: int64, minimum: 0}
+        scan: {$ref: '#/components/schemas/SourceScan'}
+    LibrarySource:
+      type: object
+      required: [id, name, kind, source_adapter_id, platform, rom_storage_policy, media_storage_policy, enabled, last_scan_status, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        kind: {type: string, enum: [rom_directory, pegasus, esde, kino]}
+        source_adapter_id: {type: string}
+        root_path: {type: string}
+        metadata_path: {type: string}
+        runtime_metadata_path: {type: string}
+        platform: {type: string}
+        metadata_locale: {type: string}
+        rom_storage_policy: {type: string, enum: [reference, copy]}
+        media_storage_policy: {type: string, enum: [copy, reference, ignore]}
+        enabled: {type: boolean}
+        last_scan_at: {type: string, format: date-time}
+        last_scan_status: {type: string, enum: [never, scanning, ready, committed, failed, stale]}
+        last_error: {type: string}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SourceScan:
+      type: object
+      required: [id, source_id, status, requested_at, candidate_count, importable_count, missing_count, duplicate_count, conflict_count]
+      properties:
+        id: {type: string, format: uuid}
+        source_id: {type: string, format: uuid}
+        status: {type: string, enum: [scanning, ready, committed, failed, stale]}
+        requested_at: {type: string, format: date-time}
+        started_at: {type: string, format: date-time}
+        finished_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        candidate_count: {type: integer, minimum: 0}
+        importable_count: {type: integer, minimum: 0}
+        missing_count: {type: integer, minimum: 0}
+        duplicate_count: {type: integer, minimum: 0}
+        conflict_count: {type: integer, minimum: 0}
+        failure_code: {type: string}
+        failure_detail: {type: string}
+    SourceScanPreview:
+      type: object
+      required: [scan, preview_token, candidates, source_diagnostics]
+      properties:
+        scan: {$ref: '#/components/schemas/SourceScan'}
+        preview_token: {type: string, description: Opaque token; expires after 15 minutes and is not stored in plaintext}
+        candidates: {type: array, items: {$ref: '#/components/schemas/ImportCandidate'}}
+        source_diagnostics: {type: array, items: {$ref: '#/components/schemas/ImportSourceDiagnostic'}}
+    PackageConfigTemplateInput:
+      type: object
+      required: [name, scope, output_path, body]
+      properties:
+        name: {type: string}
+        scope: {type: string, enum: [package, platform, edition]}
+        output_path: {type: string, description: Safe relative path ending in an allowed non-executable configuration extension}
+        body: {type: string, maxLength: 65536, description: Inert text with simple scope-checked placeholders for profile/platform/game/edition/ROM and resolved device/driver/core/Android launch values; reviewed argv and executable hints are available only as JSON arrays; unavailable values are errors}
+        sort_order: {type: integer}
+    PortablePackageProfile:
+      type: object
+      required: [id, name, frontend, target, locale, file_mode, output_slug, enabled, templates]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        frontend: {type: string, enum: [pegasus, es-de]}
+        target: {type: string}
+        device_profile_id: {type: string}
+        frontend_adapter_id: {type: string}
+        locale: {type: string}
+        file_mode: {type: string, enum: [copy, hardlink, reference], description: Reference emits metadata-only target-root-relative paths and does not copy or own ROM/media content}
+        output_slug: {type: string}
+        enabled: {type: boolean, const: true}
+        templates: {type: array, maxItems: 64, items: {$ref: '#/components/schemas/PackageConfigTemplateInput'}}
+    SupportLevel:
+      type: string
+      enum: [catalogued, package-tested, hardware-tested, sync-tested]
+      description: hardware-tested and sync-tested claims require structured passing evidence with device, software_version, verified_at, scope, and scenarios
+    SupportEvidence:
+      type: object
+      additionalProperties: true
+      description: Free-form notes for lower levels; hardware/sync claims require all declared properties and a passed result
+      properties:
+        scope: {type: string, enum: [fixture, hardware, sync]}
+        device: {type: string}
+        software_version: {type: string}
+        verified_at: {type: string, description: YYYY-MM-DD or RFC3339}
+        result: {type: string, enum: [passed]}
+        scenarios: {type: array, minItems: 1, items: {type: string}}
+    SourceAdapter:
+      type: object
+      required: [id, name, format, handler, contract_version, capabilities, support_level, evidence, builtin, enabled]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        format: {type: string, description: Stable external format or specialization slug}
+        handler: {type: string, enum: [rom_directory, pegasus, esde, kino], description: Audited parser compiled into the service; adapters never load executable code}
+        contract_version: {type: integer, minimum: 1}
+        capabilities: {type: object, additionalProperties: {type: boolean}}
+        support_level: {$ref: '#/components/schemas/SupportLevel'}
+        evidence: {$ref: '#/components/schemas/SupportEvidence'}
+        builtin: {type: boolean}
+        enabled: {type: boolean}
+    FrontendAdapter:
+      type: object
+      required: [id, name, format, handler, contract_version, capabilities, support_level, evidence, builtin, enabled]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        format: {type: string, description: Stable external format or specialization slug}
+        handler: {type: string, enum: ['', pegasus, es-de], description: Audited exporter compiled into the service; an empty value is retained only for migrated legacy catalog entries and cannot be used by a PackageProfile}
+        contract_version: {type: integer, minimum: 1}
+        capabilities: {type: object, additionalProperties: {type: boolean}}
+        support_level: {$ref: '#/components/schemas/SupportLevel'}
+        evidence: {$ref: '#/components/schemas/SupportEvidence'}
+        builtin: {type: boolean}
+        enabled: {type: boolean}
+    DriverLaunchSpec:
+      type: object
+      required: [arguments]
+      properties:
+        requires_core: {type: boolean}
+        executables: {type: object, additionalProperties: {type: array, items: {type: string}}}
+        android_package: {type: string}
+        android_activity: {type: string}
+        android_intent: {$ref: '#/components/schemas/AndroidIntentSpec'}
+        arguments: {type: array, maxItems: 32, items: {type: string, maxLength: 2048}, description: Argv entries with allowlisted variables; never a shell command}
+    AndroidIntentSpec:
+      type: object
+      required: [package]
+      description: Declarative explicit Android Intent. It cannot represent or execute a shell command; the paired client renders only allowlisted local variables.
+      properties:
+        action: {type: string, default: android.intent.action.VIEW}
+        package: {type: string}
+        package_candidates:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          description: Ordered fallback application IDs for official package variants; the Android client selects the first installed package without using an implicit intent.
+          items: {type: string}
+        activity: {type: string}
+        data: {type: string}
+        mime_type: {type: string}
+        categories: {type: array, items: {type: string}}
+        string_extras: {type: object, additionalProperties: {type: string}}
+        boolean_extras: {type: object, additionalProperties: {type: boolean}}
+        flags: {type: array, items: {type: string, enum: [grant-read-uri, grant-write-uri, new-task, clear-top]}}
+    DriverSaveSpec:
+      type: object
+      required: [scope, layout, patterns, refresh, portability]
+      properties:
+        scope: {type: string, enum: [game, platform, container]}
+        layout: {type: string}
+        patterns: {type: array, items: {type: string}}
+        scope_by_platform: {type: object, additionalProperties: {type: string, enum: [game, platform, container]}}
+        layout_by_platform: {type: object, additionalProperties: {type: string}}
+        patterns_by_platform: {type: object, additionalProperties: {type: array, items: {type: string}}}
+        refresh: {type: string}
+        portability: {type: string}
+    PortableFrontendAdapter:
+      type: object
+      required: [id, name, format, handler, contract_version, support_level, enabled]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        format: {type: string}
+        handler: {type: string, enum: ['', pegasus, es-de], description: Audited built-in exporter; empty is accepted only for legacy metadata that is not referenced by a portable PackageProfile}
+        contract_version: {type: integer, minimum: 1}
+        capabilities: {type: object, additionalProperties: {type: boolean}}
+        support_level: {type: string, const: catalogued}
+        enabled: {type: boolean, const: true}
+    PortableDeviceProfile:
+      type: object
+      required: [id, name, contract_version, target, os_family, path_style, max_path, support_level, enabled]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        contract_version: {type: integer, minimum: 1}
+        target: {type: string}
+        os_family: {type: string}
+        distribution: {type: string}
+        architecture: {type: string}
+        path_style: {type: string, enum: [posix, windows, android-uri]}
+        case_sensitive: {type: boolean}
+        max_path: {type: integer, minimum: 64}
+        illegal_characters: {type: string}
+        supports_hardlink: {type: boolean}
+        supports_hooks: {type: boolean}
+        default_frontend_id: {type: string}
+        paths: {type: object, additionalProperties: {type: string}, description: Portable relative target paths only}
+        support_level: {type: string, const: catalogued}
+        enabled: {type: boolean, const: true}
+    PortableEmulatorDriver:
+      type: object
+      required: [id, name, family, contract_version, platforms, targets, launch, save, support_level, enabled]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        family: {type: string}
+        contract_version: {type: integer, minimum: 1}
+        platforms: {type: array, minItems: 1, items: {type: string}}
+        targets: {type: array, minItems: 1, items: {type: string}}
+        launch: {$ref: '#/components/schemas/DriverLaunchSpec'}
+        save: {$ref: '#/components/schemas/DriverSaveSpec'}
+        config_paths: {type: object, additionalProperties: {type: string}}
+        support_level: {type: string, const: catalogued}
+        enabled: {type: boolean, const: true}
+    PortableRetroArchCore:
+      type: object
+      required: [id, name, contract_version, library_names, platforms, support_level, enabled]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        contract_version: {type: integer, minimum: 1}
+        library_names: {type: array, minItems: 1, items: {type: string}}
+        platforms: {type: array, minItems: 1, items: {type: string}}
+        support_level: {type: string, const: catalogued}
+        enabled: {type: boolean, const: true}
+    PortableRuntimeCatalog:
+      type: object
+      description: Declarative, non-executable runtime definitions. Built-in ownership, timestamps, local enablement, hardware evidence, secrets, and absolute device paths are excluded.
+      properties:
+        frontend_adapters: {type: array, items: {$ref: '#/components/schemas/PortableFrontendAdapter'}}
+        device_profiles: {type: array, items: {$ref: '#/components/schemas/PortableDeviceProfile'}}
+        emulator_drivers: {type: array, items: {$ref: '#/components/schemas/PortableEmulatorDriver'}}
+        retroarch_cores: {type: array, items: {$ref: '#/components/schemas/PortableRetroArchCore'}}
+        package_profile: {$ref: '#/components/schemas/PortablePackageProfile'}
+    Platform:
+      type: object
+      required: [id, name, name_zh, vendor, category, aliases, extensions, esde_systems, bios, runtime, builtin, enabled]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        name_zh: {type: string}
+        vendor: {type: string}
+        category: {type: string, enum: [console, handheld, arcade, computer]}
+        aliases: {type: array, items: {type: string}}
+        extensions: {type: array, items: {type: string}}
+        esde_systems: {type: array, items: {type: string}}
+        bios: {type: string, enum: [none, optional, required, varies]}
+        runtime: {type: string, enum: [web, web_experimental, native]}
+        suggested_emulators: {type: object, additionalProperties: {type: array, items: {type: string}}}
+        builtin: {type: boolean}
+        enabled: {type: boolean}
+    NewCustomPlatform:
+      type: object
+      required: [name, category]
+      properties:
+        id: {type: string, pattern: '^[a-z0-9][a-z0-9._-]{0,63}$'}
+        name: {type: string, minLength: 1, maxLength: 120}
+        name_zh: {type: string, maxLength: 120}
+        vendor: {type: string, maxLength: 120, default: Custom}
+        category: {type: string, enum: [console, handheld, arcade, computer]}
+        aliases: {type: array, maxItems: 64, items: {type: string}}
+        extensions: {type: array, maxItems: 64, items: {type: string, description: Dot-prefixed suffix or directory}}
+        esde_systems: {type: array, maxItems: 64, items: {type: string}}
+        bios: {type: string, enum: [none, optional, required, varies], default: varies}
+        runtime: {type: string, enum: [web, web_experimental, native], default: native}
+        suggested_emulators: {type: object, additionalProperties: {type: array, items: {type: string}}}
+        enabled: {type: boolean, default: true}
+    CustomPlatform:
+      allOf:
+        - {$ref: '#/components/schemas/Platform'}
+        - type: object
+          required: [created_at, updated_at]
+          properties:
+            created_at: {type: string, format: date-time}
+            updated_at: {type: string, format: date-time}
+    Artifact:
+      type: object
+      required: [id, edition_id, path, storage_kind, role, size, missing]
+      properties:
+        id: {type: string, format: uuid}
+        edition_id: {type: string, format: uuid}
+        path: {type: string}
+        storage_kind: {type: string, enum: [library, managed]}
+        source_path: {type: string}
+        original_name: {type: string}
+        role: {type: string, enum: [rom, disc, executable, patch, dlc, update, other]}
+        disc_index: {type: integer, minimum: 0, maximum: 64}
+        size: {type: integer, format: int64, minimum: 0}
+        sha256: {type: string}
+        missing: {type: boolean}
+    MediaAsset:
+      type: object
+      required: [id, kind, storage_kind, path, original_name, mime_type, size, sha256, source_type, content_status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        game_id: {type: string, format: uuid}
+        edition_id: {type: string, format: uuid}
+        kind: {type: string}
+        storage_kind: {type: string, enum: [library, managed]}
+        path: {type: string}
+        source_path: {type: string}
+        original_name: {type: string}
+        mime_type: {type: string}
+        size: {type: integer, format: int64}
+        sha256: {type: string}
+        locale: {type: string}
+        source_type: {type: string, enum: [upload, frontend-import, provider]}
+        sort_order: {type: integer}
+        content_status: {type: string, enum: [unverified, available, missing, changed, unsafe]}
+        content_checked_at:
+          description: RFC 3339 time of the last explicit check, or an empty string when the relation has not been checked yet.
+          anyOf:
+            - {type: string, format: date-time}
+            - {type: string, const: ''}
+        created_at: {type: string, format: date-time}
+    MediaMetadataUpdate:
+      type: object
+      additionalProperties: false
+      required: [kind, sort_order]
+      properties:
+        kind: {type: string, enum: [cover, box_front, box_back, box_spine, logo, screenshot, title_screen, background, fanart, marquee, bezel, manual, video, music, cartridge, poster, banner, tile, other]}
+        locale: {type: string, maxLength: 64}
+        sort_order: {type: integer, minimum: 0}
+    Edition:
+      type: object
+      required: [id, game_id, default_title, edition_type, artifacts]
+      properties:
+        id: {type: string, format: uuid}
+        game_id: {type: string, format: uuid}
+        default_title: {type: string}
+        display_title: {type: string}
+        titles: {type: object, additionalProperties: {type: string}}
+        edition_type: {type: string, enum: [original, translation, hack, revision, homebrew, other]}
+        version: {type: string}
+        author: {type: string}
+        languages: {type: array, items: {type: string}}
+        artifacts: {type: array, items: {$ref: '#/components/schemas/Artifact'}}
+        media: {type: array, items: {$ref: '#/components/schemas/MediaAsset'}}
+    Game:
+      type: object
+      required: [id, platform, default_title, editions]
+      properties:
+        id: {type: string, format: uuid}
+        platform: {type: string}
+        default_title: {type: string}
+        display_title: {type: string}
+        titles: {type: object, additionalProperties: {type: string}}
+        primary_edition_id: {type: string, format: uuid}
+        editions: {type: array, items: {$ref: '#/components/schemas/Edition'}}
+        media: {type: array, items: {$ref: '#/components/schemas/MediaAsset'}}
+    ArtifactStats:
+      type: object
+      additionalProperties: false
+      required: [total, missing, hashed, usable, managed]
+      properties:
+        total: {type: integer, minimum: 0}
+        missing: {type: integer, minimum: 0}
+        hashed: {type: integer, minimum: 0}
+        usable: {type: integer, minimum: 0, description: Non-missing artifacts with a content hash.}
+        managed: {type: integer, minimum: 0}
+    MediaSummary:
+      type: object
+      additionalProperties: false
+      required: [id, kind, mime_type]
+      description: Opaque thumbnail reference without storage paths, hashes, or source metadata.
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string}
+        mime_type: {type: string}
+    EditionSummary:
+      type: object
+      additionalProperties: false
+      required: [id, game_id, default_title, display_title, edition_type, languages, save_namespace, sort_order, titles, artifact_stats]
+      properties:
+        id: {type: string, format: uuid}
+        game_id: {type: string, format: uuid}
+        default_title: {type: string}
+        display_title: {type: string}
+        edition_type: {type: string, enum: [original, translation, hack, revision, homebrew, other]}
+        version: {type: string}
+        languages: {type: array, items: {type: string}}
+        author: {type: string}
+        save_namespace: {type: string}
+        serial: {type: string}
+        product_code: {type: string}
+        title_id: {type: string}
+        sort_order: {type: integer}
+        titles: {type: object, additionalProperties: {type: string}}
+        artifact_stats: {$ref: '#/components/schemas/ArtifactStats'}
+    GameSummary:
+      type: object
+      additionalProperties: false
+      required: [id, default_title, display_title, platform, titles, editions, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        default_title: {type: string}
+        display_title: {type: string}
+        platform: {type: string}
+        primary_edition_id: {type: string, format: uuid}
+        titles: {type: object, additionalProperties: {type: string}}
+        editions: {type: array, items: {$ref: '#/components/schemas/EditionSummary'}}
+        cover: {$ref: '#/components/schemas/MediaSummary'}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    GameMergeRequest:
+      type: object
+      additionalProperties: false
+      required: [source_game_id]
+      properties:
+        source_game_id: {type: string, format: uuid}
+    GameMergeCommitRequest:
+      type: object
+      additionalProperties: false
+      required: [source_game_id]
+      properties:
+        source_game_id: {type: string, format: uuid}
+        preview_token: {type: string, description: Required together with snapshot_fingerprint for current clients}
+        snapshot_fingerprint: {type: string, pattern: '^[0-9a-f]{64}$', description: Required together with preview_token for current clients}
+    GameMergePreview:
+      type: object
+      additionalProperties: false
+      required: [preview_token, snapshot_fingerprint, target_game_id, source_game_id, target_title, source_title, platform, target_editions, source_editions, result_editions, source_artifacts, source_edition_media, source_game_media, source_localized_titles, added_localized_titles, colliding_localized_titles, source_series_memberships, series_collisions, failure_policy, rom_files_moved, save_namespaces_changed, source_game_metadata_removed]
+      properties:
+        preview_token: {type: string}
+        snapshot_fingerprint: {type: string, pattern: '^[0-9a-f]{64}$'}
+        target_game_id: {type: string, format: uuid}
+        source_game_id: {type: string, format: uuid}
+        target_title: {type: string}
+        source_title: {type: string}
+        platform: {type: string}
+        target_editions: {type: integer, minimum: 0}
+        source_editions: {type: integer, minimum: 0}
+        result_editions: {type: integer, minimum: 0}
+        source_artifacts: {type: integer, minimum: 0}
+        source_edition_media: {type: integer, minimum: 0}
+        source_game_media: {type: integer, minimum: 0}
+        source_localized_titles: {type: integer, minimum: 0}
+        added_localized_titles: {type: integer, minimum: 0}
+        colliding_localized_titles: {type: integer, minimum: 0}
+        source_series_memberships: {type: integer, minimum: 0}
+        series_collisions: {type: integer, minimum: 0}
+        failure_policy: {type: string, const: atomic}
+        rom_files_moved: {type: boolean, const: false}
+        save_namespaces_changed: {type: boolean, const: false}
+        source_game_metadata_removed: {type: boolean, const: true}
+    SeriesMember:
+      type: object
+      required: [series_id, game_id, relation_type, sort_order, game]
+      properties:
+        series_id: {type: string, format: uuid}
+        game_id: {type: string, format: uuid}
+        relation_type: {type: string, enum: [mainline, port, remake, spinoff, collection, other]}
+        sort_order: {type: integer}
+        game: {$ref: '#/components/schemas/Game'}
+    SeriesMemberMutation:
+      type: object
+      additionalProperties: false
+      required: [game_id]
+      properties:
+        game_id: {type: string, format: uuid}
+        relation_type: {type: string, enum: [mainline, port, remake, spinoff, collection, other], default: mainline}
+        sort_order: {type: integer, minimum: 0, default: 0}
+    SeriesMutation:
+      type: object
+      additionalProperties: false
+      required: [default_title]
+      properties:
+        id: {type: string, format: uuid}
+        default_title: {type: string, minLength: 1}
+        description: {type: string}
+        titles: {type: object, additionalProperties: {type: string}}
+        members:
+          type: array
+          description: When present, replaces the complete member set in the same transaction as metadata.
+          items: {$ref: '#/components/schemas/SeriesMemberMutation'}
+    Series:
+      type: object
+      required: [id, default_title, display_title, titles, members, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        default_title: {type: string}
+        display_title: {type: string}
+        description: {type: string}
+        titles: {type: object, additionalProperties: {type: string}}
+        members: {type: array, items: {$ref: '#/components/schemas/SeriesMember'}}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SeriesMemberSummary:
+      type: object
+      additionalProperties: false
+      required: [series_id, game_id, relation_type, sort_order, game]
+      properties:
+        series_id: {type: string, format: uuid}
+        game_id: {type: string, format: uuid}
+        relation_type: {type: string, enum: [mainline, port, remake, spinoff, collection, other]}
+        sort_order: {type: integer}
+        game: {$ref: '#/components/schemas/GameSummary'}
+    SeriesSummary:
+      type: object
+      additionalProperties: false
+      required: [id, default_title, display_title, titles, members, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        default_title: {type: string}
+        display_title: {type: string}
+        description: {type: string}
+        titles: {type: object, additionalProperties: {type: string}}
+        members: {type: array, items: {$ref: '#/components/schemas/SeriesMemberSummary'}}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    PlatformCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/Platform'}}}}
+    CustomPlatformCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/CustomPlatform'}}}}
+    GameCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/Game'}}}}
+    GameSummaryCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/GameSummary'}}}}
+    SeriesCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/Series'}}}}
+    SeriesSummaryCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/SeriesSummary'}}}}
+    ImportSourceCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/ImportSource'}}}}
+    LibrarySourceCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/LibrarySource'}}}}
+    SourceScanCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/SourceScan'}}}}
+    SourceAdapterCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/SourceAdapter'}}}}
+    FrontendAdapterCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/FrontendAdapter'}}}}
+    MediaAssetCollection:
+      allOf:
+        - {$ref: '#/components/schemas/PaginatedBase'}
+        - {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/MediaAsset'}}}}
+    PaginatedBase:
+      type: object
+      required: [data, pagination]
+      properties:
+        data: {type: array, items: {type: object}}
+        pagination: {$ref: '#/components/schemas/Pagination'}

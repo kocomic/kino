@@ -1,0 +1,12 @@
+{
+  "name": "kino",
+  "version": "0.2.0-preview.1",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

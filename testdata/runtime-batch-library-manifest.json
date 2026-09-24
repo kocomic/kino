@@ -1,0 +1,53 @@
+{
+  "format_version": 6,
+  "frontend": "pegasus",
+  "locale": "en",
+  "custom_platforms": [],
+  "series": [],
+  "entries": [
+    {
+      "game_id": "e2e-runtime-batch-game-one",
+      "edition_id": "e2e-runtime-batch-edition-one",
+      "platform": "gba",
+      "game_default_title": "Runtime Batch One",
+      "game_titles": {"en": "Runtime Batch One"},
+      "edition_default_title": "Original",
+      "edition_titles": {"en": "Original"},
+      "edition_type": "original",
+      "languages": ["en"],
+      "artifacts": ["runtime-batch/gba/Batch One.gba"],
+      "artifact_records": [
+        {
+          "path": "runtime-batch/gba/Batch One.gba",
+          "role": "rom",
+          "original_name": "Batch One.gba",
+          "size": 41,
+          "sha256": "92e7273e4e1379e2d91cf9611bcea7954a3571209bc657017ae67136bac95d6b"
+        }
+      ],
+      "media": []
+    },
+    {
+      "game_id": "e2e-runtime-batch-game-two",
+      "edition_id": "e2e-runtime-batch-edition-two",
+      "platform": "gba",
+      "game_default_title": "Runtime Batch Two",
+      "game_titles": {"en": "Runtime Batch Two"},
+      "edition_default_title": "Original",
+      "edition_titles": {"en": "Original"},
+      "edition_type": "original",
+      "languages": ["en"],
+      "artifacts": ["runtime-batch/gba/Batch Two.gba"],
+      "artifact_records": [
+        {
+          "path": "runtime-batch/gba/Batch Two.gba",
+          "role": "rom",
+          "original_name": "Batch Two.gba",
+          "size": 41,
+          "sha256": "bf4cc5d4addb6324bcb965cc948a1dd483d7ab68b81e97d6cb9b4d67940d2ff7"
+        }
+      ],
+      "media": []
+    }
+  ]
+}

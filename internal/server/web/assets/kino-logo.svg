@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 72" role="img" aria-labelledby="title desc">
+  <title id="title">Kino</title>
+  <desc id="desc">An angular K with a layered offset frame.</desc>
+  <g transform="translate(4 4)"><path fill="#514770" d="M9 8h50v42L49 60H17L8 51z"/>
+  <path fill="#07080B" d="M4 4h52v42L46 56H14L4 46z"/>
+  <path fill="#B9F264" d="M12 11h12v14l14-14h15L34 31l20 20H38L24 37v14H12z"/>
+  <path fill="#F4F6F0" d="M15 15h5v32l-5-3z"/>
+</g>
+  <text x="82" y="49" fill="#F4F6F0" font-family="Arial Black,Arial,sans-serif" font-size="43" font-weight="900" letter-spacing="2">KINO</text>
+</svg>

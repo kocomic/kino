@@ -1,0 +1,15 @@
+collection: Game Boy Advance
+shortname: gba
+
+game: Advance Wars
+file: Advance Wars (USA).gba
+assets.box_front: media/advance-cover.svg
+x-kino-edition-type: original
+x-kino-languages: en
+
+game: Multi Disc Demo
+files: Multi Demo Disc 1.gba
+files: Multi Demo Disc 2.gba
+x-kino-edition-type: translation
+x-kino-version: 1.0
+x-kino-languages: zh-CN

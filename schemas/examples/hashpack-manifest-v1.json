@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "pack_id": "ba4e1e8d6d81773e36e5174065d3abc5d6898d700ee54d8c1bacd140a6edc967",
+  "source": {
+    "id": "example",
+    "name": "Example identity set",
+    "publisher": "Kino contributors",
+    "license": "CC0-1.0"
+  },
+  "release": "2026-09",
+  "created_at": "2026-09-04T00:00:00Z",
+  "record_count": 1,
+  "records_sha256": "43881330b5d573eee8cd4527674e07032eacaa44084b904cc432422ffbf8f978"
+}

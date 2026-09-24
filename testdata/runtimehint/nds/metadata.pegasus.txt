@@ -1,0 +1,10 @@
+collection: Nintendo DS
+launch: unsafe-frontend-command --rom {file.path}
+
+game: Runtime Hint Demo
+file: Runtime Hint Demo.nds
+x-kino-game-id: e2e-runtime-game
+x-kino-edition-id: e2e-runtime-edition
+x-kino-game-title: Runtime Hint Demo
+x-kino-edition-title: Original
+x-kino-edition-type: original
